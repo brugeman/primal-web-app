@@ -92,7 +92,7 @@ const Layout: Component = () => {
   createEffect(() => {
     if (location.pathname === '/' || account?.isKeyLookupDone) return;
 
-    account?.actions.checkNostrKey();
+//    account?.actions.checkNostrKey();
   });
 
   return (

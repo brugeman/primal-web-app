@@ -155,7 +155,7 @@ export function AccountProvider(props: { children: JSXElement }) {
 
   onMount(() => {
     setInterval(() => {
-      checkNostrChange();
+//      checkNostrChange();
     }, 1_000);
   });
 
@@ -1301,7 +1301,6 @@ export function AccountProvider(props: { children: JSXElement }) {
   onMount(() => {
     updateStore('isKeyLookupDone', () => true);
     document.addEventListener('nlAuth', e => {
-      console.log("nlAuth", e)
       updateStore('isKeyLookupDone', () => false);
       fetchNostrKey();
     })
@@ -1414,7 +1413,8 @@ export function AccountProvider(props: { children: JSXElement }) {
       socket(),
       { message: onMessage, close: onSocketClose },
     );
-    store.relays.forEach(relay => relay.close())
+    // if (store)
+    //   store.relays.forEach(relay => relay.close())
   });
 
 // SOCKET HANDLERS ------------------------------
@@ -1520,7 +1520,6 @@ const [store, updateStore] = createStore<AccountContextStore>({
     logout,
     showGetStarted,
     saveEmoji,
-    checkNostrKey,
   },
 });
 
