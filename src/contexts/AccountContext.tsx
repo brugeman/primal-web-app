@@ -1108,10 +1108,16 @@ export function AccountProvider(props: { children: JSXElement }) {
 // EFFECTS --------------------------------------
 
   onMount(() => {
-    setTimeout(() => {
+    updateStore('isKeyLookupDone', true);
+    document.addEventListener('nlAuth', e => {
+      console.log("nlAuth", e)
       updateStore('isKeyLookupDone', false);
       fetchNostrKey();
-    }, 1000);
+    })
+  // setTimeout(() => {
+  //     updateStore('isKeyLookupDone', false);
+  //     //fetchNostrKey();
+  //   }, 1000);
   });
 
   createEffect(() => {
