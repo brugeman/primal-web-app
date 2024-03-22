@@ -25,13 +25,14 @@ import styles from  "./ProfileTabs.module.scss";
 
 const ProfileTabs: Component<{
   id?: string,
-  profile: PrimalUser | undefined,
   setProfile?: (pk: string) => void,
 }> = (props) => {
 
   const intl = useIntl();
   const profile = useProfileContext();
   const account = useAccountContext();
+
+  const [currentTab, setCurrentTab] = createSignal<string>('notes');
 
   const addToAllowlist = async () => {
     const pk = profile?.profileKey;
@@ -59,7 +60,10 @@ const ProfileTabs: Component<{
       return;
     }
 
-    account.actions.removeFromMuteList(pk);
+    account.actions.removeFromMuteList(pk, () => {
+      props.setProfile && props.setProfile(pk);
+      onChangeValue(currentTab());
+    });
   };
 
   const onContactAction = (remove: boolean, pubkey: string) => {
@@ -124,33 +128,35 @@ const ProfileTabs: Component<{
   }
 
   const onChangeValue = (value: string) => {
-    if (!props.profile) return;
+    if (!profile) return;
+
+    setCurrentTab(() => value);
 
     switch(value) {
       case 'notes':
-        profile?.notes.length === 0 &&profile?.actions.fetchNotes(props.profile.pubkey);
+        profile.notes.length === 0 && profile.actions.fetchNotes(profile.profileKey);
         break;
       case 'replies':
-        profile?.replies.length === 0 && profile?.actions.fetchReplies(props.profile.pubkey);
+        profile.replies.length === 0 && profile.actions.fetchReplies(profile.profileKey);
         break;
       case 'follows':
-        profile?.contacts.length === 0 && profile?.actions.fetchContactList(props.profile.pubkey);
+        profile.contacts.length === 0 && profile.actions.fetchContactList(profile.profileKey);
         break;
       case 'followers':
-        profile?.followers.length === 0 && profile?.actions.fetchFollowerList(props.profile.pubkey);
+        profile.followers.length === 0 && profile.actions.fetchFollowerList(profile.profileKey);
         break;
       case 'zaps':
-        profile?.zaps.length === 0 && profile?.actions.fetchZapList(props.profile.pubkey);
+        profile.zaps.length === 0 && profile.actions.fetchZapList(profile.profileKey);
         break;
       case 'relays':
-        Object.keys(profile?.relays || {}).length === 0 && profile?.actions.fetchRelayList(props.profile.pubkey);
+        Object.keys(profile.relays || {}).length === 0 && profile.actions.fetchRelayList(profile.profileKey);
         break;
     }
   };
 
   return (
     <Show
-      when={profile && props.profile && profile.fetchedUserStats}
+      when={profile && profile.fetchedUserStats}
       fallback={<div class={styles.profileTabsPlaceholder}></div>}
     >
       <Tabs.Root onChange={onChangeValue}>

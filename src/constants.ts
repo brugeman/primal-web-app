@@ -262,6 +262,7 @@ export const profileRegexG = /nostr:((npub|nprofile)1\w+)\b/g;
 export const editMentionRegex = /(?:\s|^)@\`(.*?)\`/ig;
 
 export const specialCharsRegex = /[^A-Za-z0-9]/;
+export const hashtagCharsRegex = /[^A-Za-z0-9\-\_]/;
 
 // How long, in words, should a short note be
 export const shortNoteWords = 200;
@@ -378,3 +379,8 @@ export const suggestedUsersToFollow = [
 
 // Messages separated by more than this will not be grouped in the same thread
 export const threadLenghtInMs = 900;
+
+export const uploadLimit = {
+  regular: 100,
+  premium: 1024,
+}

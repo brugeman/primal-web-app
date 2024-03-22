@@ -1,4 +1,4 @@
-import { createStore, reconcile } from "solid-js/store";
+import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Kind, threadLenghtInMs } from "../constants";
 import {
   createContext,
@@ -15,6 +15,8 @@ import {
 } from "../sockets";
 import {
   ContextChildren,
+  DirectMessage,
+  DirectMessageThread,
   FeedPage,
   NostrEOSE,
   NostrEvent,
@@ -28,6 +30,7 @@ import {
   NoteActions,
   PrimalNote,
   PrimalUser,
+  SenderMessageCount,
   UserRelation,
 } from "../types/primal";
 import { APP_ID } from "../App";
@@ -40,27 +43,12 @@ import { nip19 } from "nostr-tools";
 import { convertToNotes } from "../stores/note";
 import { sanitize, sendEvent } from "../lib/notes";
 import { decrypt, encrypt } from "../lib/nostrAPI";
+import { loadMsgContacts, saveMsgContacts } from "../lib/localStore";
+import { useAppContext } from "./AppContext";
 
-
-type DirectMessage = {
-  id: string,
-  sender: string,
-  content: string,
-  created_at: number,
-};
-
-type DirectMessageThread = {
-  author: string,
-  messages: DirectMessage[],
-};
-
-type SenderMessageCount = {
-  cnt: number,
-  latest_at: number,
-  latest_event_id: string,
-}
 
 export type MessagesContextStore = {
+  activePubkey: string | undefined,
   messageCount: number,
   messageCountPerSender: Record<string, SenderMessageCount>,
   hasMessagesInDifferentTab: boolean,
@@ -89,10 +77,12 @@ export type MessagesContextStore = {
     getNextConversationPage: () => void,
     addUserReference: (user: PrimalUser) => void,
     clearAllMessages: () => void,
+    clearReceiver: () => void,
   }
 }
 
 export const initialData = {
+  activePubkey: undefined,
   messageCount: 0,
   messageCountPerSender: {},
   hasMessagesInDifferentTab: false,
@@ -122,8 +112,11 @@ export const MessagesContext = createContext<MessagesContextStore>();
 export const MessagesProvider = (props: { children: ContextChildren }) => {
 
   const account = useAccountContext();
+  const app = useAppContext();
 
-  const subidMsgCount = `msg_stats_${APP_ID}`;
+  let msgSubscribed = '|';
+
+  const subidMsgCount = () => `msg_stats_${msgSubscribed}_${APP_ID}`;
   const subidMsgCountPerSender = `msg_count_p_s_ ${APP_ID}`;
   const subidResetMsgCount = `msg_reset_ ${APP_ID}`;
   const subidResetMsgCounts = `msg_mark_as_read_${APP_ID}`;
@@ -138,24 +131,35 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
   const changeSenderRelation = (relation: UserRelation) => {
     updateStore('senderRelation', () => relation);
     // @ts-ignore
-    updateStore('senders', () => undefined );
-    updateStore('senders', () => ({}));
+    updateStore('senders', reconcile({}));
     updateStore('hasMessagesInDifferentTab' , () => false);
     getMessagesPerSender(true);
   };
 
   const subToMessagesStats = () => {
-    if (!account?.hasPublicKey()) {
-      return;
+
+    if (msgSubscribed !== account?.publicKey) {
+      unsubscribeToMessagesStats(subidMsgCount());
+      msgSubscribed = '';
     }
 
-    // @ts-ignore
-    subscribeToMessagesStats(account?.publicKey, subidMsgCount);
+    if (!account?.publicKey) return;
+
+    msgSubscribed = account.publicKey;
+    subscribeToMessagesStats(account.publicKey, subidMsgCount());
   }
 
   const getMessagesPerSender = (changeSender?: boolean) => {
     if (account?.isKeyLookupDone && account.hasPublicKey()) {
       changeSender && updateStore('selectedSender', () => null);
+
+      updateStore('activePubkey', () => account.publicKey)
+      // @ts-ignore
+      const contacts = loadMsgContacts(account?.publicKey);
+
+      updateStore('senders', reconcile({ ...contacts.profiles[store.senderRelation]}));
+      updateStore('messageCountPerSender', () => ({ ...contacts.counts }));
+
       // @ts-ignore
       getMessageCounts(account.publicKey, store.senderRelation, subidMsgCountPerSender);
     }
@@ -226,6 +230,12 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
     updateStore('encryptedMessages', () => []);
     updateStore('conversation', () => []);
     updateStore('messages', () => []);
+    updateStore('senders', reconcile({}));
+  };
+
+  const clearReceiver = () => {
+    updateStore('activePubkey', () => undefined);
+    currentSender = '';
   };
 
   const getConversationWithSender = (sender: string | null, until = 0) => {
@@ -598,7 +608,7 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
 
     const [type, subId, content] = message;
 
-    if (subId === subidMsgCount) {
+    if (subId === subidMsgCount()) {
       if (content?.kind === Kind.MessageStats) {
         const count = parseInt(content.cnt);
 
@@ -639,8 +649,10 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
       }
 
       if (type === 'EOSE') {
-        const keys = Object.keys(store.messageCountPerSender);
+        const keys = Object.keys(store.senders);
         const cnt = keys.reduce((acc, k) => acc + (store.messageCountPerSender[k]?.cnt || 0) , 0);
+
+        saveMsgContacts(store.activePubkey, store.senders, store.messageCountPerSender, store.senderRelation);
 
         if (store.messageCount > cnt) {
           updateStore('hasMessagesInDifferentTab', () => true);
@@ -650,8 +662,6 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
           const key = store.addSender.pubkey;
           const user = { ...store.addSender }
 
-
-
           updateStore('senders', () => ({ [key]: user }));
           updateStore('messageCountPerSender', user.pubkey, () => ({ cnt: 0 }));
           selectSender(store.addSender.pubkey);
@@ -660,6 +670,7 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
         }
 
         const senders = orderedSenders();
+
         if (!store.selectedSender) {
           selectSender(senders[0].npub);
         }
@@ -785,8 +796,10 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
 // EFFECTS --------------------------------------
 
   createEffect(() => {
-    if (isConnected() && account?.isKeyLookupDone && account?.hasPublicKey()) {
+    if (isConnected() && account?.isKeyLookupDone && account?.hasPublicKey() && !app?.isInactive) {
       subToMessagesStats();
+    } else {
+      unsubscribeToMessagesStats(subidMsgCount())
     }
   });
 
@@ -796,17 +809,6 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
         socket(),
         { message: onMessage, close: onSocketClose },
       );
-    }
-  });
-
-  let isSecSet = false
-
-  createEffect(() => {
-    if (!account?.sec && !isSecSet) {
-      isSecSet = true;
-      unsubscribeToMessagesStats(subidMsgCount);
-      updateStore('messageCount', () => 0);
-      updateStore('messageCountPerSender', reconcile({}));
     }
   });
 
@@ -895,6 +897,7 @@ export const MessagesProvider = (props: { children: ContextChildren }) => {
       getNextConversationPage,
       addUserReference,
       clearAllMessages,
+      clearReceiver,
     },
   });
 

@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { logError, logInfo } from "./lib/logger";
 import { NostrEvent, NostrEOSE, NostrEventType, NostrEventContent, PrimalWindow } from "./types/primal";
 
 export const [socket, setSocket] = createSignal<WebSocket>();
@@ -33,7 +34,7 @@ const onClose = () => {
 }
 
 const onError = (error: Event) => {
-  console.log("ws error: ", error);
+  logError("ws error: ", error);
 };
 
 export let cacheServer = '';
@@ -45,7 +46,7 @@ export const connect = () => {
       import.meta.env.PRIMAL_CACHE_URL;
 
     setSocket(new WebSocket(cacheServer));
-    console.log('CACHE SOCKET: ', socket());
+    logInfo('CACHE SOCKET: ', socket());
 
     socket()?.addEventListener('open', onOpen);
     socket()?.addEventListener('close', onClose);
@@ -121,5 +122,23 @@ export const subscribeTo = (subId: string, cb: (type: NostrEventType, subId: str
 
   return () => {
     socket()?.removeEventListener('message', listener);
+  };
+};
+
+export const subTo = (socket: WebSocket, subId: string, cb: (type: NostrEventType, subId: string, content?: NostrEventContent) => void ) => {
+  const listener = (event: MessageEvent) => {
+    const message: NostrEvent | NostrEOSE = JSON.parse(event.data);
+    const [type, subscriptionId, content] = message;
+
+    if (subId === subscriptionId) {
+      cb(type, subscriptionId, content);
+    }
+
+  };
+
+  socket.addEventListener('message', listener);
+
+  return () => {
+    socket.removeEventListener('message', listener);
   };
 };

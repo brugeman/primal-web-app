@@ -34,6 +34,16 @@ export const account = {
     defaultMessage: 'unfollow all',
     description: 'Unfollow all button label',
   },
+  followFailed: {
+    id: 'account.followFailed',
+    defaultMessage: 'Failed to complete the follow possibly due to a network error. Please try again.',
+    description: 'Feedback to user that the follow action has failed',
+  },
+  unfollowFailed: {
+    id: 'account.unfollowFailed',
+    defaultMessage: 'Failed to complete the unfollow possibly due to a network error. Please try again.',
+    description: 'Feedback to user that the unfollow action has failed',
+  },
   needToLogin: {
     id: 'account.needToLogin',
     defaultMessage: 'You need to be signed in to perform this action',
@@ -171,6 +181,11 @@ export const actions = {
     id: 'actions.getStarted',
     defaultMessage: 'Get Started',
     description: 'Get Started action, button label',
+  },
+  forgotPin: {
+    id: 'actions.forgotPin',
+    defaultMessage: 'I forgot my PIN',
+    description: 'Forgot PIN action, button label',
   },
   cancel: {
     id: 'actions.cancel',
@@ -350,6 +365,11 @@ export const actions = {
     },
   },
   noteContext: {
+    reactions: {
+      id: 'actions.noteContext.reactions',
+      defaultMessage: 'Reactions',
+      description: 'Label for note reactions from context menu',
+    },
     zap: {
       id: 'actions.noteContext.zapNote',
       defaultMessage: 'Custom Zap',
@@ -390,6 +410,11 @@ export const actions = {
       defaultMessage: 'Mute user',
       description: 'Label for muting user from context menu',
     },
+    unmuteAuthor: {
+      id: 'actions.noteContext.unmuteAuthor',
+      defaultMessage: 'Unmute user',
+      description: 'Label for unmuting user from context menu',
+    },
     reportAuthor: {
       id: 'actions.noteContext.reportAuthor',
       defaultMessage: 'Report user',
@@ -409,6 +434,11 @@ export const actions = {
   zap: {
     id: 'actions.zap',
     defaultMessage: 'Zap',
+    description: 'Label for zap',
+  },
+  reactions: {
+    id: 'actions.reactions',
+    defaultMessage: 'Reactions ({count})',
     description: 'Label for zap',
   },
 };
@@ -962,6 +992,21 @@ export const notifications = {
 };
 
 export const placeholders = {
+  noLikeDetails: {
+    id: 'placeholders.noLikeDetails',
+    defaultMessage: 'No details for likes found',
+    description: 'Placeholder when there are no like details in reactions modal',
+  },
+  noZapDetails: {
+    id: 'placeholders.noZapDetails',
+    defaultMessage: 'No details for zaps found',
+    description: 'Placeholder when there are no zap details in reactions modal',
+  },
+  noRepostDetails: {
+    id: 'placeholders.noRepostDetails',
+    defaultMessage: 'No details for reposts found',
+    description: 'Placeholder when there are no repost details in reactions modal',
+  },
   addComment: {
     id: 'placeholders.addComment',
     defaultMessage: 'Add a comment...',
@@ -1949,12 +1994,17 @@ export const upload = {
   fail: {
     id: 'upload.fail',
     defaultMessage: 'Failed to upload file {file}',
-    description: 'Faces emoji group title',
+    description: 'Error feedback when upload fails',
   },
-  fileTooBig: {
-    id: 'upload.fileTooBig',
+  fileTooBigRegular: {
+    id: 'upload.fileTooBigRegular',
     defaultMessage: 'File too big. Upload limit is 100MB.',
-    description: 'Faces emoji group title',
+    description: 'Error feedback when file is too big for regular users',
+  },
+  fileTooBigPremium: {
+    id: 'upload.fileTooBigPremium',
+    defaultMessage: 'File too big. Upload limit is 1GB.',
+    description: 'Error feedback when file is too big for premiumUsers',
   },
 };
 
@@ -1966,7 +2016,58 @@ export const landing = {
   },
   description: {
     id: 'landing.description',
-    defaultMessage: 'Bitcoin gains superpowers when fused with Nostr. Open protocols for money and speech are going to change everything. Join the revolution.',
+    defaultMessage: 'Open protocols for money and speech are going to change everything. Join the revolution.',
     description: 'Landing page description',
+  },
+  browserOption: {
+    id: 'landing.browserOption',
+    defaultMessage: 'Continue in browser',
+    description: 'Landing page browser option',
+  },
+};
+
+export const forgotPin = {
+  title: {
+    id: 'forgotPin.title',
+    defaultMessage: 'This action will erase you key',
+    description: 'Forgot pin modal title',
+  },
+  description: {
+    id: 'forgotPin.description',
+    defaultMessage: 'You will still be able to browse Nostr through Primal but you will not be able to take any actions (post notes, likes,...) until you re-login with your private key. Are you sure you wish to continue?',
+    description: 'Explanation of what happens when pin is erased',
+  },
+  confirm: {
+    id: 'forgotPin.confirm',
+    defaultMessage: 'Yes, continue',
+    description: 'Confirm forgot pin action',
+  },
+  abort: {
+    id: 'forgotPin.abort',
+    defaultMessage: 'Cancel',
+    description: 'Abort forgot pin action',
+  },
+};
+
+export const followWarning = {
+  title: {
+    id: 'followWarning.title',
+    defaultMessage: 'This action may result in an error',
+    description: 'Follow error modal title',
+  },
+  description: {
+    id: 'followWarning.description',
+    defaultMessage: 'If you continue, you will end up following just one nostr account. Are you sure you want to continue?',
+    description: 'Explanation of what happens when follow erro occurs',
+  },
+  confirm: {
+    id: 'followWarning.confirm',
+    defaultMessage: 'Yes, continue',
+    description: 'Confirm forgot pin action',
+  },
+  abort: {
+    id: 'followWarning.abort',
+    defaultMessage: 'Abort',
+    description: 'Abort forgot pin action',
   },
 };

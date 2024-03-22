@@ -19,6 +19,8 @@ import { hookForDev } from '../../../lib/devTools';
 import NoteContextMenu from '../NoteContextMenu';
 import { getScreenCordinates } from '../../../utils';
 import ZapAnimation from '../../ZapAnimation/ZapAnimation';
+import ReactionsModal from '../../ReactionsModal/ReactionsModal';
+import { CustomZapInfo, useAppContext } from '../../../contexts/AppContext';
 
 const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> = (props) => {
 
@@ -26,6 +28,7 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
   const toast = useToastContext();
   const intl = useIntl();
   const settings = useSettingsContext();
+  const app = useAppContext();
 
   let medZapAnimation: HTMLElement | undefined;
 
@@ -37,11 +40,13 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
   const [likes, setLikes] = createSignal(props.note.post.likes);
   const [reposts, setReposts] = createSignal(props.note.post.reposts);
   const [replies, setReplies] = createSignal(props.note.post.replies);
+  const [zapCount, setZapCount] = createSignal(props.note.post.zaps);
   const [zaps, setZaps] = createSignal(props.note.post.satszapped);
 
   const [isRepostMenuVisible, setIsRepostMenuVisible] = createSignal(false);
 
   let footerDiv: HTMLDivElement | undefined;
+  let noteContextMenu: HTMLDivElement | undefined;
 
   const repostMenuItems: MenuItem[] = [
     {
@@ -154,8 +159,44 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
   };
 
   let quickZapDelay = 0;
-  const [isCustomZap, setIsCustomZap] = createSignal(false);
   const [isZapping, setIsZapping] = createSignal(false);
+
+  const customZapInfo: CustomZapInfo = {
+    note: props.note,
+    onConfirm: (zapOption: ZapOption) => {
+      app?.actions.closeCustomZapModal();
+      setZappedAmount(() => zapOption.amount || 0);
+      setZappedNow(true);
+      setZapped(true);
+      animateZap();
+    },
+    onSuccess: (zapOption: ZapOption) => {
+      app?.actions.closeCustomZapModal();
+      setIsZapping(false);
+      setZappedNow(false);
+      setShowZapAnim(false);
+      setHideZapIcon(false);
+      setZapped(true);
+    },
+    onFail: (zapOption: ZapOption) => {
+      setZappedAmount(() => -(zapOption.amount || 0));
+      setZappedNow(true);
+      app?.actions.closeCustomZapModal();
+      setIsZapping(false);
+      setShowZapAnim(false);
+      setHideZapIcon(false);
+      setZapped(props.note.post.noteActions.zapped);
+    },
+    onCancel: (zapOption: ZapOption) => {
+      setZappedAmount(() => -(zapOption.amount || 0));
+      setZappedNow(true);
+      app?.actions.closeCustomZapModal();
+      setIsZapping(false);
+      setShowZapAnim(false);
+      setHideZapIcon(false);
+      setZapped(props.note.post.noteActions.zapped);
+    },
+  };
 
   const startZap = (e: MouseEvent | TouchEvent) => {
     e.preventDefault();
@@ -183,7 +224,7 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
     }
 
     quickZapDelay = setTimeout(() => {
-      setIsCustomZap(true);
+      app?.actions.openCustomZapModal(customZapInfo);
       setIsZapping(true);
     }, 500);
   };
@@ -203,7 +244,7 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
       return;
     }
 
-    if (!isCustomZap()) {
+    if (app?.customZap === undefined) {
       doQuickZap();
     }
   };
@@ -313,6 +354,7 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
   createEffect(() => {
 
     if (zappedNow()) {
+      setZapCount(c => c + 1);
       setZaps((z) => z + zappedAmount());
       setZapped(true);
       setZappedNow(false);
@@ -333,7 +375,7 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
   }
 
   return (
-    <div id={props.id} class={`${styles.footer} ${props.wide ? styles.wide : ''}`} ref={footerDiv}>
+    <div id={props.id} class={`${styles.footer} ${props.wide ? styles.wide : ''}`} ref={footerDiv} onClick={(e) => {e.preventDefault();}}>
 
       <Show when={showZapAnim()}>
         <ZapAnimation
@@ -401,53 +443,33 @@ const NoteFooter: Component<{ note: PrimalNote, wide?: boolean, id?: string }> =
         </div>
       </button>
 
-      <div class={styles.context}>
-        <NoteContextMenu
-          note={props.note}
-          openCustomZap={() => {
-            setIsCustomZap(true);
+      <div ref={noteContextMenu} class={styles.context}>
+        <button
+          class={styles.contextButton}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            app?.actions.openContextMenu(
+              props.note,
+              noteContextMenu?.getBoundingClientRect(),
+              () => {
+                app?.actions.openCustomZapModal(customZapInfo);
+              },
+              () => {
+                app?.actions.openReactionModal(props.note.post.id, {
+                  likes: likes(),
+                  zaps: zapCount(),
+                  reposts: reposts(),
+                  quotes: 0,
+                });
+              }
+            );
           }}
-        />
+        >
+          <div class={styles.contextIcon} ></div>
+        </button>
       </div>
-
-      <CustomZap
-        open={isCustomZap()}
-        note={props.note}
-        onConfirm={(zapOption: ZapOption) => {
-          setIsCustomZap(false);
-          setZappedAmount(() => zapOption.amount || 0);
-          setZappedNow(true);
-          setZapped(true);
-          animateZap();
-        }}
-        onSuccess={(zapOption: ZapOption) => {
-          setIsCustomZap(false);
-          setIsZapping(false);
-          setZappedNow(false);
-          setShowZapAnim(false);
-          setHideZapIcon(false);
-          setZapped(true);
-        }}
-        onFail={(zapOption: ZapOption) => {
-          setZappedAmount(() => -(zapOption.amount || 0));
-          setZappedNow(true);
-          setIsCustomZap(false);
-          setIsZapping(false);
-          setShowZapAnim(false);
-          setHideZapIcon(false);
-          setZapped(props.note.post.noteActions.zapped);
-        }}
-        onCancel={(zapOption: ZapOption) => {
-          setZappedAmount(() => -(zapOption.amount || 0));
-          setZappedNow(true);
-          setIsCustomZap(false);
-          setIsZapping(false);
-          setShowZapAnim(false);
-          setHideZapIcon(false);
-          setZapped(props.note.post.noteActions.zapped);
-        }}
-      />
-
     </div>
   )
 }

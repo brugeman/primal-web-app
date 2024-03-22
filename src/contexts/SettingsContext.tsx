@@ -37,6 +37,7 @@ import { useIntl } from "@cookbook/solid-intl";
 import { hexToNpub } from "../lib/keys";
 import { settings as t } from "../translations";
 import { getMobileReleases } from "../lib/releases";
+import { logError } from "../lib/logger";
 
 export type MobileReleases = {
   ios: { date: string, version: string },
@@ -135,7 +136,7 @@ export const SettingsProvider = (props: { children: ContextChildren }) => {
           !temp && saveSettings();
         }
         catch (e) {
-          console.log('Error parsing settings response: ', e);
+          logError('Error parsing settings response: ', e);
         }
       }
 
@@ -272,7 +273,7 @@ export const SettingsProvider = (props: { children: ContextChildren }) => {
           saveSettings();
         }
         catch (e) {
-          console.log('Error parsing settings response: ', e);
+          logError('Error parsing settings response: ', e);
         }
       }
 
@@ -360,7 +361,7 @@ export const SettingsProvider = (props: { children: ContextChildren }) => {
           updateStore('availableZapOptions', () => zapOptions);
         }
         catch (e) {
-          console.log('Error parsing settings response: ', e);
+          logError('Error parsing settings response: ', e);
         }
       }
 
@@ -456,14 +457,14 @@ export const SettingsProvider = (props: { children: ContextChildren }) => {
 
             const feedLatest = {
               name: feedLatestLabel,
-              hex: publicKey,
-              npub: hexToNpub(publicKey),
+              hex: account?.publicKey,
+              npub: hexToNpub(account?.publicKey),
             };
 
             const feedLatestWithReplies = {
               name: feedLatestWithRepliesLabel,
-              hex: publicKey,
-              npub: hexToNpub(publicKey),
+              hex: account?.publicKey,
+              npub: hexToNpub(account?.publicKey),
               includeReplies: true,
             };
 
@@ -486,7 +487,7 @@ export const SettingsProvider = (props: { children: ContextChildren }) => {
           }
         }
         catch (e) {
-          console.log('Error parsing settings response: ', e);
+          logError('Error parsing settings response: ', e);
         }
       }
 
@@ -560,7 +561,7 @@ export const SettingsProvider = (props: { children: ContextChildren }) => {
   const feedLatestLabel = intl.formatMessage(t.feedLatest);
   const feedLatestWithRepliesLabel = intl.formatMessage(t.feedLatestWithReplies);
 
-  let publicKey: string | undefined;
+  // let publicKey: string | undefined;
 
   // Initial setup for a user with a public key
   createEffect(() => {
@@ -569,9 +570,7 @@ export const SettingsProvider = (props: { children: ContextChildren }) => {
       return;
     }
 
-    if (publicKey) return;
-
-    publicKey = account?.publicKey;
+    const publicKey = account?.publicKey;
 
     const initFeeds = initAvailableFeeds(publicKey);
 

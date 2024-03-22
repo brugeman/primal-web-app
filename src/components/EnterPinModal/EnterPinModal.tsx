@@ -13,6 +13,9 @@ import { hookForDev } from '../../lib/devTools';
 import ButtonPrimary from '../Buttons/ButtonPrimary';
 import TextInput from '../TextInput/TextInput';
 import { decryptWithPin, setCurrentPin } from '../../lib/PrimalNostr';
+import { logError } from '../../lib/logger';
+import ButtonSecondary from '../Buttons/ButtonSecondary';
+import { useAccountContext } from '../../contexts/AccountContext';
 
 const EnterPinModal: Component<{
   id?: string,
@@ -20,10 +23,12 @@ const EnterPinModal: Component<{
   valueToDecrypt?: string,
   onSuccess?: (decryptedValue: string) => void,
   onAbort?: () => void,
+  onForgot?: () => void,
 }> = (props) => {
 
   const intl = useIntl();
   const toast = useToastContext();
+  const account = useAccountContext();
 
   let pinInput: HTMLInputElement | undefined;
 
@@ -54,7 +59,7 @@ const EnterPinModal: Component<{
       // Execute callback
       props.onSuccess && props.onSuccess(enc);
     } catch(e) {
-      console.log('Failed to decode nsec: ', e);
+      logError('Failed to decode nsec: ', e);
       toast?.sendWarning('PIN is incorrect');
     }
 
@@ -106,6 +111,12 @@ const EnterPinModal: Component<{
           >
             {intl.formatMessage(tActions.login)}
           </ButtonPrimary>
+
+          <ButtonSecondary
+            onClick={props.onForgot}
+          >
+            {intl.formatMessage(tActions.forgotPin)}
+          </ButtonSecondary>
         </div>
       </div>
     </Modal>

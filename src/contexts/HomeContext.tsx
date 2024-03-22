@@ -1,9 +1,10 @@
 import { nip19 } from "nostr-tools";
 import { createContext, createEffect, onCleanup, useContext } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createStore, reconcile, unwrap } from "solid-js/store";
 import { APP_ID } from "../App";
 import { Kind } from "../constants";
 import { getEvents, getExploreFeed, getFeed, getFutureExploreFeed, getFutureFeed } from "../lib/feed";
+import { fetchStoredFeed, saveStoredFeed } from "../lib/localStore";
 import { setLinkPreviews } from "../lib/notes";
 import { getScoredUsers, searchContent } from "../lib/search";
 import { isConnected, refreshSocketListeners, removeSocketListeners, socket } from "../sockets";
@@ -40,6 +41,9 @@ type HomeContextStore = {
     notes: PrimalNote[],
     page: FeedPage,
     reposts: Record<string, string> | undefined,
+    scope: string,
+    timeframe: string,
+    latest_at: number,
   },
   sidebar: {
     notes: PrimalNote[],
@@ -60,6 +64,7 @@ type HomeContextStore = {
     loadFutureContent: () => void,
     doSidebarSearch: (query: string) => void,
     updateSidebarQuery: (selection: SelectionOption) => void,
+    getFirstPage: () => void,
   }
 }
 
@@ -88,6 +93,9 @@ const initialHomeData = {
       mentions: {},
       noteActions: {},
     },
+    scope: '',
+    timeframe: '',
+    latest_at: 0,
   },
   sidebar: {
     notes: [],
@@ -203,6 +211,9 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
         mentions: {},
         noteActions: {},
       },
+      scope: '',
+      timeframe: '',
+      latest_at: 0,
     }))
   }
 
@@ -227,6 +238,12 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
 
     const [scope, timeframe] = topic.split(';');
 
+    if (scope !== store.future.scope || timeframe !== store.future.timeframe) {
+      clearFuture();
+      updateStore('future', 'scope', () => scope);
+      updateStore('future', 'timeframe', () => timeframe);
+    }
+
     let since = 0;
 
     if (store.notes[0]) {
@@ -235,7 +252,21 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
         store.notes[0].post.created_at;
     }
 
-    clearFuture();
+    if (store.future.notes[0]) {
+      const lastFutureNote = unwrap(store.future.notes).sort((a, b) => b.post.created_at - a.post.created_at)[0];
+
+      since = lastFutureNote.repost ?
+        lastFutureNote.repost.note.created_at :
+        lastFutureNote.post.created_at;
+    }
+
+    updateStore('future', 'page', () =>({
+      messages: [],
+      users: {},
+      postStats: {},
+      mentions: {},
+      noteActions: {},
+    }))
 
     if (scope && timeframe) {
       if (timeframe !== 'latest') {
@@ -349,10 +380,20 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
   const selectFeed = (feed: PrimalFeed | undefined) => {
     if (feed?.hex !== undefined && (feed.hex !== currentFeed?.hex || feed.includeReplies !== currentFeed?.includeReplies)) {
       currentFeed = { ...feed };
+      saveStoredFeed(account?.publicKey, currentFeed);
+
       updateStore('selectedFeed', reconcile({...feed}));
       clearNotes();
       fetchNotes(feed.hex , `${APP_ID}`, 0, feed.includeReplies);
     }
+  };
+
+  const getFirstPage = () => {
+    const feed = store.selectedFeed;
+    if (!feed?.hex) return;
+
+    clearNotes();
+    fetchNotes(feed.hex , `${APP_ID}`, 0, feed.includeReplies);
   };
 
   const updatePage = (content: NostrEventContent, scope?: 'future') => {
@@ -383,13 +424,20 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
           store.notes[0]?.post?.noteId === messageId :
           store.notes[0]?.repost?.note.noteId === messageId;
 
+
+        const scopeNotes = store[scope].notes;
+
+        const isaAlreadyIn = message.kind === Kind.Text &&
+          scopeNotes &&
+          scopeNotes.find(n => n.post.noteId === messageId);
+
         let isAlreadyReposted = isRepostInCollection(store[scope].page.messages, message);
 
         // const isAlreadyFetched = message.kind === Kind.Text ?
         //   store.future.notes[0]?.post?.noteId === messageId :
         //   store.future.notes[0]?.repost?.note.noteId === messageId;
 
-        if (isFirstNote || isAlreadyReposted) return;
+        if (isFirstNote || isaAlreadyIn || isAlreadyReposted) return;
 
         updateStore(scope, 'page', 'messages',
           (msgs) => [ ...msgs, { ...message }]
@@ -489,6 +537,7 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
   const savePage = (page: FeedPage, scope?: 'future') => {
     const topic = (store.selectedFeed?.hex || '').split(';');
     const sortingFunction = sortingPlan(topic[1]);
+
 
     const newPosts = sortingFunction(convertToNotes(page));
 
@@ -626,12 +675,10 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
     }
   });
 
-  let keyIsDone = false;
-
   createEffect(() => {
-    if (account?.isKeyLookupDone && !keyIsDone && settings?.defaultFeed) {
-      keyIsDone = true;
-      selectFeed(settings?.defaultFeed);
+    if (account?.isKeyLookupDone && settings?.defaultFeed) {
+      const storedFeed = fetchStoredFeed(account.publicKey);
+      selectFeed(storedFeed || settings?.defaultFeed);
     }
   });
 
@@ -660,6 +707,7 @@ export const HomeProvider = (props: { children: ContextChildren }) => {
       loadFutureContent,
       doSidebarSearch,
       updateSidebarQuery,
+      getFirstPage,
     },
   });
 

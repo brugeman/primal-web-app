@@ -1,5 +1,5 @@
 import { UserStats } from "../contexts/ProfileContext";
-import { EmojiOption, NostrRelays, PrimalFeed, PrimalUser, SelectionOption } from "../types/primal";
+import { EmojiOption, NostrRelays, PrimalFeed, PrimalUser, SelectionOption, SenderMessageCount, UserRelation } from "../types/primal";
 
 export type LocalStore = {
   following: string[],
@@ -17,9 +17,15 @@ export type LocalStore = {
     profiles: PrimalUser[],
     stats: Record<string, UserStats>,
   },
+  msgContacts: {
+    profiles: Record<UserRelation, Record<string, PrimalUser>>,
+    counts: Record<string, SenderMessageCount>,
+  },
   emojiHistory: EmojiOption[],
   noteDraft: Record<string, string>,
+  noteDraftUserRefs: Record<string, Record<string, PrimalUser>>,
   uploadTime: Record<string, number>,
+  selectedFeed: PrimalFeed | undefined,
 };
 
 export type UploadTime = {
@@ -38,7 +44,7 @@ export const defaultUploadTime: UploadTime = {
   final: 100,
 };
 
-export const emptyStorage = {
+export const emptyStorage: LocalStore = {
   following: [],
   followingSince: 0,
   muted: [],
@@ -47,13 +53,16 @@ export const emptyStorage = {
   relaySettings: {},
   likes: [],
   feeds: [],
+  msgContacts: { profiles: { other: {}, follows: {}, any: {} }, counts: {} },
   theme: 'sunset',
   homeSidebarSelection: undefined,
   userProfile: undefined,
   recomended: { profiles: [], stats: {} },
   emojiHistory: [],
   noteDraft: {},
+  noteDraftUserRefs: {},
   uploadTime: defaultUploadTime,
+  selectedFeed: undefined,
 }
 
 export const storageName = (pubkey?: string) => {
@@ -256,6 +265,40 @@ export const readNoteDraft = (pubkey: string | undefined, replyTo?: string) => {
   return store.noteDraft[key] || '';
 }
 
+export const saveNoteDraftUserRefs = (pubkey: string | undefined, refs: Record<string, PrimalUser>, replyTo?: string) => {
+  if (!pubkey) {
+    return;
+  }
+
+  const store = getStorage(pubkey);
+
+  const key = replyTo || 'root';
+
+  if (!store.noteDraftUserRefs || typeof store.noteDraftUserRefs === 'string') {
+    store.noteDraftUserRefs = {};
+  }
+
+  store.noteDraftUserRefs[key] = refs;
+
+  setStorage(pubkey, store);
+}
+
+export const readNoteDraftUserRefs = (pubkey: string | undefined, replyTo?: string) => {
+  if (!pubkey) {
+    return {};
+  }
+
+  const store = getStorage(pubkey);
+
+  if (!store.noteDraftUserRefs || typeof store.noteDraftUserRefs === 'string') {
+    store.noteDraftUserRefs = {};
+  }
+
+  const key = replyTo || 'root';
+
+  return store.noteDraftUserRefs[key] || {};
+}
+
 export const saveUploadTime = (pubkey: string | undefined, uploadTime: Record<string, number>) => {
   if (!pubkey) {
     return;
@@ -335,4 +378,48 @@ export const setStoredProfile = (profile: PrimalUser) => {
   store.userProfile = {...profile};
 
   setStorage(profile.pubkey, store);
+};
+
+
+export const saveMsgContacts = (pubkey: string | undefined, contacts: Record<string, PrimalUser>, counts: Record<string, SenderMessageCount>, context: UserRelation) => {
+  if (!pubkey) {
+    return;
+  }
+
+  const store = getStorage(pubkey);
+
+  if (!store.msgContacts) {
+    store.msgContacts = { profiles: { follows: {}, other: {}, any: {} }, counts: {} };
+  }
+
+  store.msgContacts.profiles[context] = { ...contacts };
+  store.msgContacts.counts = { ...counts };
+
+  setStorage(pubkey, store);
+}
+
+
+export const loadMsgContacts = (pubkey: string) => {
+  const store = getStorage(pubkey)
+
+  return store.msgContacts || { profiles: {}, counts: {} };
+};
+
+
+export const fetchStoredFeed = (pubkey: string | undefined) => {
+  if (!pubkey) return undefined;
+
+  const store = getStorage(pubkey)
+
+  return store.selectedFeed;
+};
+
+export const saveStoredFeed = (pubkey: string | undefined, feed: PrimalFeed) => {
+  if (!pubkey) return;
+
+  const store = getStorage(pubkey);
+
+  store.selectedFeed = { ...feed };
+
+  setStorage(pubkey, store);
 };

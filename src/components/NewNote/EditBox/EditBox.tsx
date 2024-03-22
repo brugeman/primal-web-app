@@ -2,7 +2,7 @@ import { useIntl } from "@cookbook/solid-intl";
 import { Router, useLocation } from "@solidjs/router";
 import { nip19 } from "nostr-tools";
 import { Component, createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { createStore, unwrap } from "solid-js/store";
+import { createStore, reconcile, unwrap } from "solid-js/store";
 import { noteRegex, profileRegex, Kind, editMentionRegex, emojiSearchLimit, profileRegexG } from "../../../constants";
 import { useAccountContext } from "../../../contexts/AccountContext";
 import { useSearchContext } from "../../../contexts/SearchContext";
@@ -40,8 +40,9 @@ import { useProfileContext } from "../../../contexts/ProfileContext";
 import ButtonGhost from "../../Buttons/ButtonGhost";
 import EmojiPickPopover from "../../EmojiPickModal/EmojiPickPopover";
 import ConfirmAlternativeModal from "../../ConfirmModal/ConfirmAlternativeModal";
-import { readNoteDraft, saveNoteDraft } from "../../../lib/localStore";
+import { readNoteDraft, readNoteDraftUserRefs, saveNoteDraft, saveNoteDraftUserRefs } from "../../../lib/localStore";
 import Uploader from "../../Uploader/Uploader";
+import { logError } from "../../../lib/logger";
 
 type AutoSizedTextArea = HTMLTextAreaElement & { _baseScrollHeight: number };
 
@@ -498,6 +499,9 @@ const EditBox: Component<{
   createEffect(() => {
     if (props.open) {
       const draft = readNoteDraft(account?.publicKey, props.replyToNote?.post.noteId);
+      const draftUserRefs = readNoteDraftUserRefs(account?.publicKey, props.replyToNote?.post.noteId);
+
+      setUserRefs(reconcile(draftUserRefs));
 
       setMessage((msg) => {
         if (msg.length > 0) return msg;
@@ -526,6 +530,7 @@ const EditBox: Component<{
 
     // save draft just in case there is an unintended interuption
     saveNoteDraft(account?.publicKey, message(), props.replyToNote?.post.noteId);
+    saveNoteDraftUserRefs(account?.publicKey, userRefs, props.replyToNote?.post.noteId);
   });
 
   const onEscape = (e: KeyboardEvent) => {
@@ -574,6 +579,7 @@ const EditBox: Component<{
     }
 
     saveNoteDraft(account?.publicKey, '', props.replyToNote?.post.noteId);
+    saveNoteDraftUserRefs(account?.publicKey, {}, props.replyToNote?.post.noteId);
     clearEditor();
   };
 
@@ -586,6 +592,7 @@ const EditBox: Component<{
 
   const persistNote = (note: string) => {
     saveNoteDraft(account?.publicKey, note, props.replyToNote?.post.noteId);
+    saveNoteDraftUserRefs(account?.publicKey, userRefs, props.replyToNote?.post.noteId);
     clearEditor();
   };
 
@@ -611,12 +618,14 @@ const EditBox: Component<{
 
     const messageToSend = value.replace(editMentionRegex, (url) => {
 
-      const [_, name] = url.split('\`');
+      const [anythingBefore, mention] = url.split('@');
+
+      const [_, name] = mention.split('\`');
       const user = userRefs[name];
 
       // @ts-ignore
-      return ` nostr:${user.npub}`;
-    })
+      return `${anythingBefore} nostr:${user.npub}`;
+    });
 
     if (account) {
       let tags = referencesToTags(messageToSend);
@@ -986,7 +995,7 @@ const EditBox: Component<{
         // @ts-ignore
         return link.outerHTML || url;
       } catch (e) {
-        console.log('ERROR: ', e);
+        logError('Bad Note reference: ', e);
         return `<span class="${styles.error}">${url}</span>`;
       }
 
@@ -1271,6 +1280,7 @@ const EditBox: Component<{
           <div class={styles.uploader}>
             <Uploader
               publicKey={account?.publicKey}
+              nip05={account?.activeUser?.nip05}
               openSockets={props.open}
               file={fileToUpload()}
               onFail={() => {
@@ -1280,8 +1290,11 @@ const EditBox: Component<{
                 resetUpload();
               }}
               onRefuse={(reason: string) => {
-                if (reason === 'file_too_big') {
-                  toast?.sendWarning(intl.formatMessage(tUpload.fileTooBig));
+                if (reason === 'file_too_big_100') {
+                  toast?.sendWarning(intl.formatMessage(tUpload.fileTooBigRegular));
+                }
+                if (reason === 'file_too_big_1024') {
+                  toast?.sendWarning(intl.formatMessage(tUpload.fileTooBigPremium));
                 }
                 resetUpload();
               }}
